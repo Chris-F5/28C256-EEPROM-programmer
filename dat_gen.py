@@ -1,9 +1,10 @@
 EEPROM_SIZE = 32768
-FILE_NAME = "eeprom.data"
+FILE_NAME = "eeprom.bin"
 
-data = bytearray()
-for i in range(EEPROM_SIZE):
-    data.append(0x99);
+data = bytearray([0xEA] * EEPROM_SIZE)
+
+data[0x7FFE] = 0x00
+data[0x7FFF] = 0x80
 
 file = open(FILE_NAME, "wb")
 file.write(data)

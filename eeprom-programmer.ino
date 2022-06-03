@@ -12,6 +12,7 @@
 #define GPIO_D7 13
 
 #define EEPROM_SIZE 32768
+#define BLOCK_SIZE 512
 
 void setShiftRegisters(unsigned int address, bool outputEnable)
 {
@@ -26,7 +27,7 @@ void setShiftRegisters(unsigned int address, bool outputEnable)
     digitalWrite(GPIO_SHIFT_LATCH, LOW);
 }
 
-byte readEEPROM(int address)
+byte readByteEEPROM(int address)
 {
     pinMode(GPIO_D0, INPUT);
     pinMode(GPIO_D1, INPUT);
@@ -50,9 +51,9 @@ byte readEEPROM(int address)
     return data;
 }
 
-void writeEEPROM(unsigned int address, byte data)
+void writeByteEEPROM(unsigned int address, byte data)
 {
-    if(readEEPROM(address) == data) {
+    if(readByteEEPROM(address) == data) {
         return;
     }
 
@@ -77,20 +78,22 @@ void writeEEPROM(unsigned int address, byte data)
     digitalWrite(GPIO_WRITE_ENABLE, LOW);
     delayMicroseconds(1);
     digitalWrite(GPIO_WRITE_ENABLE, HIGH);
-    delay(10);
+    delay(12);
 }
 
 void printEEPROM()
 {
     unsigned int i = 0;
     while(i < EEPROM_SIZE) {
-        byte data = readEEPROM(i);
+        byte data = readByteEEPROM(i);
         char hex[2];
         sprintf(hex, "%02X", data);
         Serial.print(hex);
-        Serial.print(" ");
+        Serial.print(' ');
         if (i % 16 == 15) {
             Serial.print("| ");
+            Serial.print(i - 15);
+            Serial.print(" to ");
             Serial.print(i);
             Serial.print(" / 32768\n");
         }
@@ -98,19 +101,7 @@ void printEEPROM()
     }
 }
 
-void fillEEPROM(byte data[])
-{
-    Serial.print("\n");
-    for(unsigned int i = 0; i < EEPROM_SIZE; i++) {
-        writeEEPROM(i, data[i]);
-    }
-    Serial.print("\n");
-    delay(500);
-}
-
-void setup()
-{
-    Serial.begin(57600);
+void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(GPIO_SHIFT_DAT, OUTPUT);
     pinMode(GPIO_SHIFT_CLK, OUTPUT);
@@ -119,76 +110,44 @@ void setup()
     digitalWrite(GPIO_WRITE_ENABLE, HIGH);
     pinMode(GPIO_WRITE_ENABLE, OUTPUT);
 
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    // handshake
-    while (true){
-        String in = Serial.readStringUntil("\n");
-        Serial.println("OK: " + in);
-        delay(10);
-        if(in.length() > 3) {
-            break;
-        }
-    }
-
-
-    //printEEPROM();
-    /*byte data[EEPROM_SIZE];
-    for(unsigned int i = 0; i < EEPROM_SIZE; i++) {
-        data[i] = 0xEA;
-    }
-
-    fillEEPROM(data);
-
-    printEEPROM();
-    */
+    Serial.begin(115200);
+    Serial.setTimeout(3000);
 }
 
-unsigned int i = 0;
-void loop()
-{
+void loop() {
+    while(!Serial.available());
+    String request = Serial.readStringUntil(':');
+    String argument = Serial.readStringUntil('\n');
 
-    if(Serial.available() > 0) {
-        byte data = Serial.read();
-        writeEEPROM(i, data);
-        i++;
-    } else {
-        Serial.println("More Please");
-        delay(1000);
+    if(request == "READ" and argument == "ALL") {
+        printEEPROM();
+        Serial.print("END_RESPONSE\n");
+        return;
+    } else if(request == "WRITE") {
+        unsigned int block = argument.toInt();
+        Serial.print("Block ");
+        Serial.print(block);
+        Serial.print(" selected. Awaiting bytes...\n");
+
+        byte buffer[BLOCK_SIZE];
+        int w = Serial.readBytes(buffer, BLOCK_SIZE);
+        if (w != BLOCK_SIZE) {
+            Serial.print("Failed to read bytes. Timed out. Aborting write.\n");
+            Serial.print("END_RESPONSE\n");
+            return;
+        }
+        Serial.print("Received bytes. Writing to EEPROM...\n");
+
+        for(unsigned int i = 0; i < BLOCK_SIZE; i++) {
+            writeByteEEPROM(i + BLOCK_SIZE * block, buffer[i]);
+        }
+        Serial.print("Finish writing to block ");
+        Serial.print(block);
+        Serial.print(".\n");
+        Serial.print("END_RESPONSE\n");
+        return;
     }
-    /*
-    if(Serial.available() && i < EEPROM_SIZE) {
-        if(i == 0) {
-            Serial.println("Writing EEPROM");
-            for (unsigned int i = 0; i < EEPROM_SIZE / 512; i ++) {
-                Serial.print("_");
-            }
-            Serial.print("\n");
-        }
-        char data[512];
-        Serial.readBytes(data, 512);
-        for(unsigned int x = 0; x < 512; x++) {
-            writeEEPROM(i, data[x]);
-            i++;
-        }
-        Serial.print(".");
-        
-        if(i >= EEPROM_SIZE) {
-            Serial.print("\n");
-            Serial.println("Write done.");
-            digitalWrite(LED_BUILTIN, LOW);
-            delayMicroseconds(100);
-            printEEPROM();
-        }
-    }
-    */
-    /*
-    delay(10000);
-    digitalWrite(LED_BUILTIN, HIGH);
-    setShiftRegisters(4, true);
-    digitalWrite(LED_BUILTIN, LOW);
-    delay(10000);
-    setShiftRegisters(2, false);
-    digitalWrite(LED_BUILTIN, HIGH);
-    */
+    Serial.print("Invalid request: ");
+    Serial.print(request + ".\n" + argument + ".\n");
+    Serial.print("END_RESPONSE\n");
 }

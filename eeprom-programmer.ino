@@ -53,32 +53,30 @@ byte readByteEEPROM(int address)
 
 void writeByteEEPROM(unsigned int address, byte data)
 {
-    if(readByteEEPROM(address) == data) {
-        return;
+    while(readByteEEPROM(address) != data) {
+        setShiftRegisters(address, false);
+        pinMode(GPIO_D0, OUTPUT);
+        pinMode(GPIO_D1, OUTPUT);
+        pinMode(GPIO_D2, OUTPUT);
+        pinMode(GPIO_D3, OUTPUT);
+        pinMode(GPIO_D4, OUTPUT);
+        pinMode(GPIO_D5, OUTPUT);
+        pinMode(GPIO_D6, OUTPUT);
+        pinMode(GPIO_D7, OUTPUT);
+
+        digitalWrite(GPIO_D0, data & 1);
+        digitalWrite(GPIO_D1, data & 2);
+        digitalWrite(GPIO_D2, data & 4);
+        digitalWrite(GPIO_D3, data & 8);
+        digitalWrite(GPIO_D4, data & 16);
+        digitalWrite(GPIO_D5, data & 32);
+        digitalWrite(GPIO_D6, data & 64);
+        digitalWrite(GPIO_D7, data & 128);
+        digitalWrite(GPIO_WRITE_ENABLE, LOW);
+        delayMicroseconds(1);
+        digitalWrite(GPIO_WRITE_ENABLE, HIGH);
+        delay(12);
     }
-
-    setShiftRegisters(address, false);
-    pinMode(GPIO_D0, OUTPUT);
-    pinMode(GPIO_D1, OUTPUT);
-    pinMode(GPIO_D2, OUTPUT);
-    pinMode(GPIO_D3, OUTPUT);
-    pinMode(GPIO_D4, OUTPUT);
-    pinMode(GPIO_D5, OUTPUT);
-    pinMode(GPIO_D6, OUTPUT);
-    pinMode(GPIO_D7, OUTPUT);
-
-    digitalWrite(GPIO_D0, data & 1);
-    digitalWrite(GPIO_D1, data & 2);
-    digitalWrite(GPIO_D2, data & 4);
-    digitalWrite(GPIO_D3, data & 8);
-    digitalWrite(GPIO_D4, data & 16);
-    digitalWrite(GPIO_D5, data & 32);
-    digitalWrite(GPIO_D6, data & 64);
-    digitalWrite(GPIO_D7, data & 128);
-    digitalWrite(GPIO_WRITE_ENABLE, LOW);
-    delayMicroseconds(1);
-    digitalWrite(GPIO_WRITE_ENABLE, HIGH);
-    delay(12);
 }
 
 void printEEPROM()
